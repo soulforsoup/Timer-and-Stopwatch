@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased selection:bg-neutral-300 dark:selection:bg-neutral-700">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>⏱ 00h 00m 00s — Timer</title>
+    
+    <!-- Fonts: Inter for maximal readability at ultra-large scales -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans:['Inter', 'sans-serif'] },
+                    colors: {
+                        darkBg: '#030303',
+                        lightBg: '#fcfcfc',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Alpine.js (CDN) -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        /* Avant-Garde Overrides */
+        body { transition: background-color 0.5s ease, color 0.5s ease; }
+        
+        /* Critical for readable, static-width numbers */
+        .tabular-nums { font-variant-numeric: tabular-nums; }
+        
+        /* Hide Number Input Arrows */
+        input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        
+        /* Ambient Glow in Dark Mode */
+        .dark .glow-text { text-shadow: 0 0 50px rgba(255,255,255,0.08); }
+        .dark .negative-glow { text-shadow: 0 0 60px rgba(239,68,68,0.3); }
+
+        /* Custom Range Slider Styling */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: currentColor; cursor: pointer; margin-top: -6px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: rgba(150, 150, 150, 0.3); border-radius: 2px; }
+    </style>
+</head>
+<body 
+    x-data="timerApp()" 
+    x-init="initApp()" 
+    class="bg-lightBg text-neutral-900 dark:bg-darkBg dark:text-neutral-50 min-h-[100dvh] flex flex-col font-sans overflow-hidden"
+    @keydown.window="handleKey($event)"
+>
+
+    <!-- Theme Toggle (Top Right) -->
+    <button 
+        @click="toggleTheme()" 
+        class="fixed top-6 right-6 z-50 p-3 rounded-full bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 ring-neutral-500"
+        aria-label="Toggle Theme"
+    >
+        <svg x-show="theme === 'dark'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        <svg x-show="theme === 'light'" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+    </button>
+
+    <!-- Main Dynamic Display Area -->
+    <main class="flex-1 flex items-center justify-center w-full px-4 sm:px-8 pb-16 pointer-events-none select-none">
+        
+        <!-- Highly Fluid Typographic Matrix -->
+        <div 
+            class="flex flex-wrap justify-center items-baseline gap-x-4 sm:gap-x-8 gap-y-2 transition-all duration-300 w-full"
+            :class="{ 'text-red-500 negative-glow': isNegative }"
+            :style="`font-size: calc(${scaleFactor} * clamp(3rem, 12vw, 35rem));`"
+        >
+            
+            <!-- Negative State Prefix -->
+            <div x-show="isNegative" class="font-bold tracking-tighter leading-none" x-cloak>-</div>
+
+            <!-- Hours -->
+            <div class="flex items-baseline">
+                <span class="tabular-nums font-bold tracking-tighter glow-text leading-none" x-text="timeObj.h">00</span>
+                <span class="text-[0.22em] font-bold tracking-wide opacity-40 ml-1.5 uppercase">hr</span>
+            </div>
+
+            <!-- Minutes -->
+            <div class="flex items-baseline">
+                <span class="tabular-nums font-bold tracking-tighter glow-text leading-none" x-text="timeObj.m">00</span>
+                <span class="text-[0.22em] font-bold tracking-wide opacity-40 ml-1.5 uppercase">min</span>
+            </div>
+
+            <!-- Seconds -->
+            <div class="flex items-baseline">
+                <span class="tabular-nums font-bold tracking-tighter glow-text leading-none" x-text="timeObj.s">00</span>
+                <span class="text-[0.22em] font-bold tracking-wide opacity-40 ml-1.5 uppercase">sec</span>
+            </div>
+
+            <!-- Milliseconds -->
+            <div class="flex items-baseline" x-show="showMs" x-transition x-cloak>
+                <span class="tabular-nums font-bold tracking-tighter glow-text leading-none opacity-60" x-text="timeObj.ms">00</span>
+                <span class="text-[0.22em] font-bold tracking-wide opacity-30 ml-1.5 uppercase">ms</span>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Bottom Controls Wrapper -->
+    <div class="fixed bottom-10 left-0 w-full flex justify-center z-40 pointer-events-none">
+        <div class="relative flex flex-col items-center pointer-events-auto w-full max-w-lg">
+            
+            <!-- Settings Panel -->
+            <div 
+                x-show="menuOpen" 
+                @click.outside="menuOpen = false"
+                x-transition:enter="transition ease-out duration-300 transform"
+                x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                x-transition:leave="transition ease-in duration-200 transform"
+                x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+                class="absolute bottom-[calc(100%+1.5rem)] left-1/2 -translate-x-1/2 bg-white/90 dark:bg-black/90 backdrop-blur-2xl border border-black/5 dark:border-white/5 shadow-2xl rounded-3xl p-6 w-[90%] sm:w-80 flex flex-col gap-6 origin-bottom"
+                x-cloak
+            >
+                <!-- Mode Selector -->
+                <div class="flex bg-neutral-200/50 dark:bg-neutral-800/50 rounded-full p-1 font-medium">
+                    <button @click="setMode('stopwatch')" class="flex-1 py-2 text-sm rounded-full transition-all" :class="mode === 'stopwatch' ? 'bg-white dark:bg-neutral-700 shadow-sm' : 'opacity-60'">Stopwatch</button>
+                    <button @click="setMode('countdown')" class="flex-1 py-2 text-sm rounded-full transition-all" :class="mode === 'countdown' ? 'bg-white dark:bg-neutral-700 shadow-sm' : 'opacity-60'">Countdown</button>
+                </div>
+
+                <!-- Countdown Time Setter -->
+                <div x-show="mode === 'countdown'" x-collapse class="flex justify-center gap-2 items-start tabular-nums font-semibold mt-1">
+                    <div class="flex flex-col items-center gap-1.5">
+                        <input type="number" x-model="inputH" @input="updateCountdown" aria-label="Hours" min="0" max="99" class="w-14 h-14 bg-transparent border border-neutral-300 dark:border-neutral-700 rounded-xl text-center text-xl focus:outline-none focus:border-neutral-500 dark:focus:border-neutral-400 transition-colors">
+                        <span class="text-[10px] font-bold tracking-widest opacity-40 uppercase">hr</span>
+                    </div>
+                    <span class="opacity-30 pt-3">:</span>
+                    <div class="flex flex-col items-center gap-1.5">
+                        <input type="number" x-model="inputM" @input="updateCountdown" aria-label="Minutes" min="0" max="59" class="w-14 h-14 bg-transparent border border-neutral-300 dark:border-neutral-700 rounded-xl text-center text-xl focus:outline-none focus:border-neutral-500 dark:focus:border-neutral-400 transition-colors">
+                        <span class="text-[10px] font-bold tracking-widest opacity-40 uppercase">min</span>
+                    </div>
+                    <span class="opacity-30 pt-3">:</span>
+                    <div class="flex flex-col items-center gap-1.5">
+                        <input type="number" x-model="inputS" @input="updateCountdown" aria-label="Seconds" min="0" max="59" class="w-14 h-14 bg-transparent border border-neutral-300 dark:border-neutral-700 rounded-xl text-center text-xl focus:outline-none focus:border-neutral-500 dark:focus:border-neutral-400 transition-colors">
+                        <span class="text-[10px] font-bold tracking-widest opacity-40 uppercase">sec</span>
+                    </div>
+                </div>
+
+                <!-- Rescale UI / Slider -->
+                <div class="border-t border-black/5 dark:border-white/5 pt-4 space-y-3">
+                    <div class="flex justify-between items-center text-sm font-medium">
+                        <span class="opacity-80">Timer Size</span>
+                        <span class="text-xs font-bold opacity-50 tabular-nums" x-text="Math.round(scaleFactor * 100) + '%'"></span>
+                    </div>
+                    <input type="range" min="0.5" max="3" step="0.1" x-model="scaleFactor" aria-label="Timer Scale Slider" class="w-full">
+                </div>
+
+                <!-- Toggles -->
+                <div class="space-y-4 font-medium border-t border-black/5 dark:border-white/5 pt-4">
+                    <label class="flex items-center justify-between cursor-pointer group">
+                        <span class="text-sm opacity-80 group-hover:opacity-100 transition-opacity">Show Milliseconds</span>
+                        <button @click="showMs = !showMs" class="w-10 h-6 rounded-full relative transition-colors duration-300" :class="showMs ? 'bg-neutral-800 dark:bg-neutral-200' : 'bg-neutral-300 dark:bg-neutral-700'">
+                            <div class="absolute top-1 bg-white dark:bg-black w-4 h-4 rounded-full transition-all duration-300" :class="showMs ? 'left-5' : 'left-1'"></div>
+                        </button>
+                    </label>
+                    <label class="flex items-center justify-between cursor-pointer group">
+                        <span class="text-sm opacity-80 group-hover:opacity-100 transition-opacity">End Beep & Notify</span>
+                        <button @click="toggleSound()" class="w-10 h-6 rounded-full relative transition-colors duration-300" :class="soundEnabled ? 'bg-neutral-800 dark:bg-neutral-200' : 'bg-neutral-300 dark:bg-neutral-700'">
+                            <div class="absolute top-1 bg-white dark:bg-black w-4 h-4 rounded-full transition-all duration-300" :class="soundEnabled ? 'left-5' : 'left-1'"></div>
+                        </button>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Main Button Bar -->
+            <div class="flex items-center gap-3 sm:gap-4 bg-white/50 dark:bg-black/50 backdrop-blur-2xl px-4 sm:px-6 py-3 border border-black/5 dark:border-white/5 rounded-full shadow-2xl relative z-10">
+                
+                <button @click="resetTimer()" aria-label="Restart Timer (R)" class="w-12 h-12 flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 ring-neutral-500 group">
+                    <svg class="w-5 h-5 opacity-70 group-hover:opacity-100 group-hover:-rotate-90 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+
+                <button @click="togglePlay()" aria-label="Play or Pause (Space)" class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-900 dark:bg-neutral-100 text-white dark:text-black hover:scale-105 active:scale-95 transition-all shadow-md focus-visible:outline-none focus-visible:ring-2 ring-neutral-500 ring-offset-2 ring-offset-lightBg dark:ring-offset-darkBg">
+                    <div class="relative w-6 h-6">
+                        <svg x-show="status !== 'running'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-50" x-transition:enter-end="opacity-100 scale-100" class="absolute inset-0 w-6 h-6 translate-x-[2px]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        <svg x-show="status === 'running'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-50" x-transition:enter-end="opacity-100 scale-100" class="absolute inset-0 w-6 h-6" fill="currentColor" viewBox="0 0 24 24" x-cloak><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </div>
+                </button>
+
+                <button @click="toggleFullscreen()" aria-label="Toggle Fullscreen (F)" class="w-12 h-12 flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 ring-neutral-500 group">
+                    <svg x-show="!isFullscreen" class="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                    <svg x-show="isFullscreen" x-cloak class="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+                </button>
+
+                <button @click="menuOpen = !menuOpen" aria-label="Settings Menu" class="w-12 h-12 flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 ring-neutral-500 group" :class="menuOpen ? 'bg-black/10 dark:bg-white/10' : ''">
+                    <svg class="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                </button>
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic Engine -->
+    <script>
+        function timerApp() {
+            return {
+                mode: 'stopwatch',
+                status: 'stopped',
+                theme: 'dark',
+                isFullscreen: false,
+                
+                scaleFactor: 1.0,
+
+                elapsed: 0,
+                countdownDuration: 0,
+                lastTick: 0,
+                lastSecondRendered: -1,
+                reqAnimFrame: null,
+                
+                menuOpen: false,
+                showMs: false,
+                soundEnabled: false,
+                hasAlarmed: false, 
+                
+                inputH: 0, inputM: 5, inputS: 0,
+                audioCtx: null,
+
+                initApp() {
+                    window.rescaleTimer = (scale) => {
+                        this.scaleFactor = Math.max(0.1, Math.min(Number(scale), 5.0));
+                    };
+
+                    this.theme = localStorage.getItem('timer_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                    this.applyTheme();
+
+                    this.mode = localStorage.getItem('timer_mode') || 'stopwatch';
+                    this.showMs = localStorage.getItem('timer_showMs') === 'true';
+                    this.soundEnabled = localStorage.getItem('timer_sound') === 'true';
+                    
+                    const savedScale = parseFloat(localStorage.getItem('timer_scaleFactor'));
+                    if (!isNaN(savedScale)) this.scaleFactor = savedScale;
+
+                    const savedCD = parseInt(localStorage.getItem('timer_countdownDuration'));
+                    if (!isNaN(savedCD) && savedCD > 0) {
+                        this.countdownDuration = savedCD;
+                        this.inputH = Math.floor(savedCD / 3600000);
+                        this.inputM = Math.floor((savedCD % 3600000) / 60000);
+                        this.inputS = Math.floor((savedCD % 60000) / 1000);
+                    } else {
+                        this.updateCountdown();
+                    }
+
+                    this.$watch('theme', val => { localStorage.setItem('timer_theme', val); this.applyTheme(); });
+                    this.$watch('mode', val => { localStorage.setItem('timer_mode', val); this.resetTimer(); });
+                    this.$watch('showMs', val => localStorage.setItem('timer_showMs', val));
+                    this.$watch('soundEnabled', val => localStorage.setItem('timer_sound', val));
+                    this.$watch('scaleFactor', val => localStorage.setItem('timer_scaleFactor', val));
+                    
+                    document.addEventListener('fullscreenchange', () => {
+                        this.isFullscreen = !!document.fullscreenElement;
+                    });
+                    
+                    this.updateDocumentTitle();
+                },
+
+                applyTheme() {
+                    if (this.theme === 'dark') document.documentElement.classList.add('dark');
+                    else document.documentElement.classList.remove('dark');
+                },
+
+                toggleTheme() {
+                    this.theme = this.theme === 'light' ? 'dark' : 'light';
+                },
+
+                setMode(m) {
+                    this.mode = m;
+                    this.menuOpen = false;
+                },
+
+                updateCountdown() {
+                    let h = Math.max(0, Math.min(99, parseInt(this.inputH) || 0));
+                    let m = Math.max(0, Math.min(59, parseInt(this.inputM) || 0));
+                    let s = Math.max(0, Math.min(59, parseInt(this.inputS) || 0));
+                    
+                    this.inputH = h;
+                    this.inputM = m;
+                    this.inputS = s;
+                    
+                    this.countdownDuration = (h * 3600000) + (m * 60000) + (s * 1000);
+                    localStorage.setItem('timer_countdownDuration', this.countdownDuration);
+                    
+                    if (this.status === 'stopped' || this.status === 'paused') {
+                        this.elapsed = 0;
+                        this.hasAlarmed = false;
+                        this.status = 'stopped';
+                        if (this.reqAnimFrame) cancelAnimationFrame(this.reqAnimFrame);
+                    }
+                    this.updateDocumentTitle();
+                },
+
+                handleKey(e) {
+                    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+                    
+                    const key = e.key.toLowerCase();
+                    if (key === ' ') {
+                        e.preventDefault();
+                        this.togglePlay();
+                    } else if (key === 'r') {
+                        e.preventDefault();
+                        this.resetTimer();
+                    } else if (key === 'f') {
+                        e.preventDefault();
+                        this.toggleFullscreen();
+                    }
+                },
+
+                togglePlay() {
+                    if (this.status === 'running') {
+                        this.pause();
+                    } else {
+                        if (this.mode === 'countdown' && this.countdownDuration === 0) {
+                            this.menuOpen = true;
+                            return;
+                        }
+                        this.start();
+                    }
+                },
+
+                start() {
+                    this.initAudioContext();
+                    this.status = 'running';
+                    this.lastTick = Date.now();
+                    this.reqAnimFrame = requestAnimationFrame(() => this.loop());
+                },
+
+                pause() {
+                    this.status = 'paused';
+                    if (this.reqAnimFrame) cancelAnimationFrame(this.reqAnimFrame);
+                    this.updateDocumentTitle();
+                },
+
+                resetTimer() {
+                    this.status = 'stopped';
+                    this.elapsed = 0;
+                    this.hasAlarmed = false;
+                    if (this.reqAnimFrame) cancelAnimationFrame(this.reqAnimFrame);
+                    this.updateDocumentTitle();
+                },
+
+                toggleFullscreen() {
+                    if (!document.fullscreenElement) {
+                        const docElm = document.documentElement;
+                        if (docElm.requestFullscreen) docElm.requestFullscreen();
+                        else if (docElm.webkitRequestFullscreen) docElm.webkitRequestFullscreen(); 
+                    } else if (document.exitFullscreen) {
+                        if (document.exitFullscreen) document.exitFullscreen();
+                        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                    }
+                },
+
+                loop() {
+                    if (this.status !== 'running') return;
+                    
+                    const now = Date.now();
+                    const delta = now - this.lastTick;
+                    this.elapsed += delta;
+                    this.lastTick = now;
+
+                    if (this.mode === 'countdown' && this.elapsed >= this.countdownDuration && !this.hasAlarmed) {
+                        this.hasAlarmed = true;
+                        this.triggerAlarmAudio();
+                    }
+
+                    const currentSec = Math.floor(this.elapsed / 1000);
+                    if (currentSec !== this.lastSecondRendered) {
+                        this.updateDocumentTitle();
+                        this.lastSecondRendered = currentSec;
+                    }
+
+                    this.reqAnimFrame = requestAnimationFrame(() => this.loop());
+                },
+
+                get displayMs() {
+                    if (this.mode === 'countdown') {
+                        return this.countdownDuration - this.elapsed;
+                    }
+                    return this.elapsed;
+                },
+
+                get isNegative() {
+                    return this.mode === 'countdown' && this.displayMs < 0;
+                },
+
+                get timeObj() {
+                    let rawMs = this.displayMs;
+                    let absMs = Math.abs(rawMs);
+                    
+                    let h = Math.floor(absMs / 3600000);
+                    let m = Math.floor((absMs % 3600000) / 60000);
+                    let s = Math.floor((absMs % 60000) / 1000);
+                    let ms = Math.floor((absMs % 1000) / 10);
+
+                    const pad = (n) => n.toString().padStart(2, '0');
+                    return { h: pad(h), m: pad(m), s: pad(s), ms: pad(ms) };
+                },
+
+                updateDocumentTitle() {
+                    const t = this.timeObj;
+                    const sign = this.isNegative ? '-' : '';
+                    let str = `${sign}${t.h !== '00' ? t.h + 'h ' : ''}${t.m}m ${t.s}s`;
+                    document.title = `⏱ ${str} — Timer`;
+                },
+
+                toggleSound() {
+                    this.soundEnabled = !this.soundEnabled;
+                    if (this.soundEnabled && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                        Notification.requestPermission();
+                    }
+                },
+
+                initAudioContext() {
+                    if (!this.soundEnabled) return;
+                    if (!this.audioCtx) {
+                        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    if (this.audioCtx.state === 'suspended') {
+                        this.audioCtx.resume();
+                    }
+                },
+
+                triggerAlarmAudio() {
+                    if (this.soundEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        new Notification('Timer Finished', { 
+                            body: 'Your countdown has ended. Tracking overdue time.', 
+                            icon: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text y="50" font-size="50">⏱</text></svg>' 
+                        });
+                    }
+
+                    if (this.soundEnabled && this.audioCtx) {
+                        const osc = this.audioCtx.createOscillator();
+                        const gain = this.audioCtx.createGain();
+                        osc.connect(gain);
+                        gain.connect(this.audioCtx.destination);
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(880, this.audioCtx.currentTime); 
+                        
+                        gain.gain.setValueAtTime(0, this.audioCtx.currentTime);
+                        gain.gain.linearRampToValueAtTime(0.5, this.audioCtx.currentTime + 0.1);
+                        gain.gain.linearRampToValueAtTime(0, this.audioCtx.currentTime + 0.8);
+                        
+                        osc.start();
+                        osc.stop(this.audioCtx.currentTime + 0.8);
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
